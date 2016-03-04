@@ -6,7 +6,8 @@ extern "C" {
 #endif
 
 #define DEBUG
-#define PANASONIC
+//#define PANASONIC
+#define NEC_PROTOCOL
 
 #ifdef __cplusplus
 }
