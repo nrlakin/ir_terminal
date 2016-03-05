@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define DEBUG
+//#define DEBUG
 //#define PANASONIC
 #define NEC_PROTOCOL
 

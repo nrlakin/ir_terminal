@@ -4,6 +4,7 @@
 #include "config.h"
 #include "ir_sensor.h"
 #include "buffer.h"
+#include "debug_utils.h"
 
 
 volatile rx_status_t IrRxStatus;
@@ -16,21 +17,21 @@ buffer_t RxBuffer;
 
 #define RX_BUFFER_SIZE    64
 
-// Bit width constants
+// Bit width constants, us
 #ifdef NEC_PROTOCOL
-  #define ONE_SPACE_MIN      1602
-  #define ONE_SPACE_RNG      169
-  #define ZERO_SPACE_MIN     534
-  #define ZERO_SPACE_RNG     56 
-  #define MARK_MIN           534
-  #define MARK_RNG           56
-  #define START_MARK_MIN     8550
-  #define START_MARK_RNG     900
-  #define START_SPACE_MIN    4275
-  #define START_SPACE_RNG    450
-  #define STOP_MARK_MIN      534
-  #define STOP_MARK_RNG      56
-  #define MIN_STOP_SPACE     15000
+  #define ONE_SPACE_MIN      (1602/4)
+  #define ONE_SPACE_RNG      (169/2)
+  #define ZERO_SPACE_MIN     (534/4)
+  #define ZERO_SPACE_RNG     (56/2) 
+  #define MARK_MIN           (534/4)
+  #define MARK_RNG           (56/2)
+  #define START_MARK_MIN     (8550/4)
+  #define START_MARK_RNG     (900/2)
+  #define START_SPACE_MIN    (4275/4)
+  #define START_SPACE_RNG    (450/2)
+  #define STOP_MARK_MIN      (534/4)
+  #define STOP_MARK_RNG      (56/2)
+  #define MIN_STOP_SPACE     (15000/4)
 #elif defined PANASONIC
   #define ONE_SPACE    1320
   #define ZERO_SPACE   450
@@ -60,9 +61,7 @@ struct IrRxPacket {
  *
  */
 ISR(INT0_vect) {
-#ifdef DEBUG
   digitalWrite(4, CommRx);
-#else
   IrRxStatus.width = TCNT2;       // capture time
 //  TCNT2 = 0;                      // reset timer
   TCNT1 = 0;                      // reset timer
@@ -71,23 +70,19 @@ ISR(INT0_vect) {
   NOP;
   IrRxStatus.level = CommRx;      // now check and see type of transition
   IrRxStatus.new_edge = true;
-#endif
 }
 
 //ISR(TIMER2_OVF_vect) {
 ISR(TIMER1_COMPA_vect) {
- #ifdef DEBUG
- if (pinstate) pinstate=0;
- else pinstate=1;
- digitalWrite(5, pinstate);
- #else
+  if (pinstate) pinstate=0;
+  else pinstate=1;
+  digitalWrite(5, pinstate);
   bool started;                  //remember this bit
   StopTimer();
 //  TCNT2=0;                      // clear counter (not necessary if not using output compare)
   TCNT1 = 0;
   IrRxStatus.result = 0;
   IrRxStatus.timeout = true;
-#endif
 }
 
 /* 
@@ -184,6 +179,7 @@ void processTimeout(void) {
 void processEdge(void) {
     bool level = IrRxStatus.level;
     unsigned int width = IrRxStatus.width;
+    WriteUart('h');
     IrRxStatus.new_edge=0;
     if (IrRxStatus.new_packet) return;    // ignore until we've processed last packet.
     if (level == false) { // Line went low. Check if last interval was valid mark; if so, this is a space.
@@ -203,8 +199,10 @@ void processEdge(void) {
     // If code reaches here, we have just completed a "space" and can process meaning.
     IrRxStatus.space = false;
     if (IrRxStatus.started == false) {
-      if ((unsigned int)(width-START_SPACE_MIN) <= START_SPACE_RNG) IrRxStatus.started = true;
-      else {
+      if ((unsigned int)(width-START_SPACE_MIN) <= START_SPACE_RNG) {
+         IrRxStatus.started = true;
+         WriteUart('s');
+      } else {
         ResetIrRxStatus();
       }
       return;
@@ -224,6 +222,8 @@ void processEdge(void) {
       }
       if (IrRxStatus.bit_index == 8) {
         putBuff(IrRxStatus.result, &RxBuffer);
+        WriteUart('g');
+        WriteUart(IrRxStatus.result);
         IrRxStatus.bit_index = 0;
         IrRxStatus.result = 0;
       }
